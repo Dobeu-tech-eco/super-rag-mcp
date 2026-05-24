@@ -1,0 +1,12 @@
+{
+  "working_directory": "C:\\Users\\jswil\\repos\\super-rag-gdrive-onedrive",
+  "platform": "Cowork on Windows",
+  "model": "claude-sonnet-4-6",
+  "current_plan": "docs/superpowers/plans/2026-05-23-rag-mvp-plan.md",
+  "current_task": "complete",
+  "git": {"branch": "main", "last_commit": "see git log"},
+  "build_status": "passing",
+  "test_status": "passing (unit + e2e integration)",
+  "connections": ["ollama (local)", "claude-cli (local)"],
+  "handoff_notes": "Plan 1 MVP complete. Ready for Plan 2 (cloud connectors)."
+}

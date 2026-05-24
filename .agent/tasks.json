@@ -1,0 +1,21 @@
+{
+  "plan": "Plan 1 — RAG MVP",
+  "started_at": "2026-05-23",
+  "features": [
+    {"id": 1, "title": "Project scaffold", "status": "in_progress", "passes": false, "priority": 1, "dependencies": []},
+    {"id": 2, "title": "Config loader", "status": "pending", "passes": false, "priority": 2, "dependencies": [1]},
+    {"id": 3, "title": "Metadata store", "status": "pending", "passes": false, "priority": 3, "dependencies": [1]},
+    {"id": 4, "title": "DLQ", "status": "pending", "passes": false, "priority": 4, "dependencies": [1]},
+    {"id": 5, "title": "Parser", "status": "pending", "passes": false, "priority": 5, "dependencies": [1]},
+    {"id": 6, "title": "Chunker", "status": "pending", "passes": false, "priority": 6, "dependencies": [5]},
+    {"id": 7, "title": "Embedder", "status": "pending", "passes": false, "priority": 7, "dependencies": [1]},
+    {"id": 8, "title": "Index wrapper", "status": "pending", "passes": false, "priority": 8, "dependencies": [1]},
+    {"id": 9, "title": "Connector protocol", "status": "pending", "passes": false, "priority": 9, "dependencies": [3]},
+    {"id": 10, "title": "Localfs connector", "status": "pending", "passes": false, "priority": 10, "dependencies": [9]},
+    {"id": 11, "title": "Sync orchestrator", "status": "pending", "passes": false, "priority": 11, "dependencies": [2,3,4,5,6,7,8,10]},
+    {"id": 12, "title": "LLM backends", "status": "pending", "passes": false, "priority": 12, "dependencies": [1]},
+    {"id": 13, "title": "Query module", "status": "pending", "passes": false, "priority": 13, "dependencies": [3,7,8,12]},
+    {"id": 14, "title": "CLI", "status": "pending", "passes": false, "priority": 14, "dependencies": [11,13]},
+    {"id": 15, "title": "End-to-end integration test", "status": "pending", "passes": false, "priority": 15, "dependencies": [14]}
+  ]
+}

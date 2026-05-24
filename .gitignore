@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# RAG data
+/var/lib/rag/
+*.tq
+*.sqlite
+*.sqlite-journal
+*.jsonl
+bundles/
+mirrors/
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
