@@ -1,0 +1,30 @@
+sources:
+  - kind: localfs
+    paths:
+      - C:\Users\jswil\Documents\rag-test-corpus
+
+embedding:
+  model: bge-small-en-v1.5
+  ollama_url: http://localhost:11434
+  batch_size: 32
+
+chunking:
+  primary: sentence
+  fallback_size: 512
+  overlap: 64
+
+ocr:
+  enabled: true
+  strategy: auto_detect
+  min_chars_per_page: 100
+
+llm:
+  default: claude-cli
+  private_prefix: "private:"
+  private_tag_routes_to: ollama
+  ollama_model: qwen2.5:7b
+
+paths:
+  bundle_dir: C:\Users\jswil\rag-data\bundles
+  dlq: C:\Users\jswil\rag-data\dlq.jsonl
+  metadata: C:\Users\jswil\rag-data\meta.sqlite
