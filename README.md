@@ -4,25 +4,41 @@ Self-hosted retrieval-augmented generation over your personal cloud and local do
 
 ## Status
 
-Phase 1 of 4: Local-files MVP. See `docs/superpowers/plans/` for plan progression.
+**Phase 1 (Local-files MVP): shipped.** End-to-end pipeline works against PDFs, DOCX, TXT, and Markdown on the local filesystem with OCR fallback, semantic chunking, Ollama embeddings, a turbovec vector index, and dual LLM backends (Claude Code CLI + local Ollama). Tasks 1–15 of the MVP plan are merged; unit + integration suites are green.
 
-## Quickstart (after Phase 1 ships)
+Next up — Phase 2: Composio-driven cloud connectors (Google Drive, OneDrive, Gmail, Outlook).
+
+## Quickstart (live)
 
 ```bash
 uv venv && uv pip install -e ".[dev]"
-cp config.example.yaml config.yaml  # edit paths
-rag sync
+cp config.example.yaml config.yaml   # edit paths/sources
+rag sync                              # ingest configured roots
 rag query "what does the safety policy say about new drivers?"
+rag status                            # last run + DLQ counts
+rag dlq list                          # inspect failed documents
 ```
+
+Use `private: ...` as a query prefix to keep generation on the local Ollama backend.
 
 ## Prerequisites
 
 - Python 3.12
-- Ollama with `bge-small-en-v1.5` and `qwen2.5:7b` pulled
-- Tesseract + Poppler installed (for OCR)
-- Claude Code CLI installed and authenticated
+- Ollama running locally with `bge-small-en-v1.5` (embeddings, 384-dim) and `qwen2.5:7b` (private generation) pulled
+- Tesseract + Poppler installed (only needed for scanned-PDF OCR)
+- Claude Code CLI installed and authenticated (used as the default generator)
+
+## Architecture at a glance
+
+**Sync path.** `rag sync` walks each configured `Connector` (currently `LocalfsConnector`) for change events since the last successful run. New/modified docs are fetched as `RawDoc`, parsed (PyMuPDF for PDFs with auto-detect OCR fallback, python-docx for DOCX, plain decode for text), chunked sentence-aware via LlamaIndex with per-chunk page-range mapping, embedded in batch through Ollama, and written atomically into the turbovec `VectorIndex` and SQLite `MetadataStore`. Failures land in a JSONL `DeadLetterQueue`; the manifest in each local root makes deletes observable across runs.
+
+**Query path.** `rag query` strips the optional `private:` prefix, embeds the question with the same Ollama model used at ingest, runs a top-k search against the vector index, hydrates the resulting chunk IDs from SQLite to get text + source URLs + page numbers, and hands a prompt with citations to the routed `LLMBackend` (Claude CLI by default, Ollama when `private:` was used). The CLI renders the answer plus a citations table.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for components, data contracts, and extension points, and [docs/CODEMAPS/rag.md](docs/CODEMAPS/rag.md) for a file-by-file navigation aid.
 
 ## Docs
 
+- Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Codemap: [docs/CODEMAPS/rag.md](docs/CODEMAPS/rag.md)
 - Design spec: `docs/superpowers/specs/2026-05-23-rag-pipeline-design.md`
 - MVP plan: `docs/superpowers/plans/2026-05-23-rag-mvp-plan.md`
