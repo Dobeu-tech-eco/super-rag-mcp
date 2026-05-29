@@ -28,3 +28,12 @@ paths:
   bundle_dir: C:\Users\jswil\rag-data\bundles
   dlq: C:\Users\jswil\rag-data\dlq.jsonl
   metadata: C:\Users\jswil\rag-data\meta.sqlite
+
+# Composio auth for cloud connectors (Plan 2). Omit entirely for localfs-only setups.
+# api_key_env names the environment variable holding your Composio API key.
+# connected_accounts maps each source account alias to its Composio connected-account ID.
+composio:
+  api_key_env: COMPOSIO_API_KEY
+  connected_accounts:
+    personal-jeremy: ca_REPLACE_ME
+    work-baldor: ca_REPLACE_ME
