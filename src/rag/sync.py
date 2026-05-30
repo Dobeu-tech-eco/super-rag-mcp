@@ -1,10 +1,13 @@
 """Sync orchestrator: walks connectors, parses, chunks, embeds, indexes."""
 from __future__ import annotations
+
 import hashlib
 import logging
 import traceback
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterable
+from datetime import datetime
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -67,7 +70,7 @@ class SyncOrchestrator:
                     except ConnectorAuthError as e:
                         log.error("auth error for %s/%s: %s", source_name, account, e)
                         continue
-                    except Exception as e:
+                    except Exception:
                         log.exception("listing failed for %s/%s", source_name, account)
                         continue
 
@@ -105,6 +108,26 @@ class SyncOrchestrator:
                 docs_processed=docs_processed, chunks_indexed=chunks_indexed,
             )
             raise
+
+    def replay_doc(self, source: str, account: str, doc_id: str) -> int:
+        """Re-fetch and re-index one previously-failed document. Returns chunks added.
+
+        Used by ``rag dlq replay``. The DLQ entry carries only (source, account, doc_id),
+        so the synthesized event has no ``source_url`` — citations for replayed docs lose
+        the link, but the content is re-indexed.
+        """
+        conn = self.connectors.get(source)
+        if conn is None:
+            raise KeyError(f"no connector configured for source {source!r}")
+        event = ChangeEvent(
+            source=source,
+            account=account,
+            doc_id=doc_id,
+            operation="upsert",
+            source_url="",
+            last_modified=datetime.utcnow(),
+        )
+        return self._process_doc(conn, event)
 
     def _process_doc(self, conn: Connector, event: ChangeEvent) -> int:
         raw = conn.fetch_content(event.account, event.doc_id)

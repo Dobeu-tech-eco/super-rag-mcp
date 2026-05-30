@@ -1,6 +1,6 @@
-import base64
-
+import httpx
 import pytest
+import respx
 
 from rag.connectors.gdrive import GdriveConnector
 from rag.types import RawDoc
@@ -57,8 +57,8 @@ def test_list_changes_paginates(tmp_path):
                            state_dir=tmp_path)
     events = list(conn.list_changes("acct", since=None))
     assert {e.doc_id for e in events} == {"f1", "f2"}
-    # Second page request must carry the page token.
-    assert client.calls[1][1].get("page_token") == "tok2"
+    # Second page request must carry the page token under the live param name.
+    assert client.calls[1][1].get("pageToken") == "tok2"
 
 
 def test_list_changes_unknown_account_raises_auth(tmp_path):
@@ -69,12 +69,15 @@ def test_list_changes_unknown_account_raises_auth(tmp_path):
         list(conn.list_changes("nope", since=None))
 
 
-def test_fetch_content_decodes_base64(tmp_path):
+@respx.mock
+def test_fetch_content_downloads_via_s3url(tmp_path):
     payload = b"%PDF-1.4 fake"
+    s3url = "https://s3.amazonaws.com/composio/f1.pdf"
+    respx.get(s3url).mock(return_value=httpx.Response(200, content=payload))
     client = FakeClient({
         "GOOGLEDRIVE_DOWNLOAD_FILE": {
             "name": "a.pdf", "mimeType": "application/pdf",
-            "content_b64": base64.b64encode(payload).decode(),
+            "downloaded_file_content": {"s3url": s3url},
             "webViewLink": "https://drive.google.com/file/d/f1/view",
         }
     })
@@ -85,4 +88,5 @@ def test_fetch_content_decodes_base64(tmp_path):
     assert raw.content == payload
     assert raw.doc_id == "f1" and raw.source == "gdrive"
     assert raw.mime == "application/pdf" and raw.filename == "a.pdf"
-    assert client.calls[0][1] == {"file_id": "f1"}
+    # Download must use the live param name `fileId`.
+    assert client.calls[0][1] == {"fileId": "f1"}

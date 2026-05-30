@@ -3,6 +3,22 @@ sources:
     paths:
       - C:\Users\jswil\Documents\rag-test-corpus
 
+  # --- Cloud sources (Composio). Require the `composio:` block below + the cloud extra
+  #     (`uv pip install -e ".[dev,cloud]"`) and COMPOSIO_API_KEY exported. The `accounts`
+  #     values are aliases defined under composio.connected_accounts. Uncomment to enable.
+  # - kind: gdrive
+  #     accounts: [personal-jeremy]
+  #     mime_filter: [application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document]
+  # - kind: onedrive
+  #     accounts: [work-dobeu]
+  #     mime_filter: [application/pdf]
+  # - kind: gmail
+  #     accounts: [personal-jeremy]      # indexes attachments only
+  #     mime_filter: [application/pdf]
+  # - kind: outlook
+  #     accounts: [work-dobeu]           # indexes attachments only; M365/Enterprise mailboxes
+  #     mime_filter: [application/pdf]
+
 embedding:
   model: bge-small-en-v1.5
   ollama_url: http://localhost:11434
@@ -29,11 +45,15 @@ paths:
   dlq: C:\Users\jswil\rag-data\dlq.jsonl
   metadata: C:\Users\jswil\rag-data\meta.sqlite
 
-# Composio auth for cloud connectors (Plan 2). Omit entirely for localfs-only setups.
-# api_key_env names the environment variable holding your Composio API key.
+# Composio auth for cloud connectors. Omit entirely for localfs-only setups.
+# api_key_env names the environment variable holding your Composio API key (export it
+#   before running cloud syncs, e.g. PowerShell: $env:COMPOSIO_API_KEY="..." ).
 # connected_accounts maps each source account alias to its Composio connected-account ID.
+#   Find the real IDs by listing your Composio connections (they look like the examples
+#   below, one per connected mailbox/drive). One alias can be reused across source kinds
+#   only if the same account is connected for each (e.g. Gmail + Drive for one Google login).
 composio:
   api_key_env: COMPOSIO_API_KEY
   connected_accounts:
-    personal-jeremy: ca_REPLACE_ME
-    work-baldor: ca_REPLACE_ME
+    personal-jeremy: googledrive_REPLACE_ME   # e.g. googledrive_xxxx / gmail_xxxx
+    work-dobeu: one_drive_REPLACE_ME           # e.g. one_drive_xxxx / outlook_xxxx

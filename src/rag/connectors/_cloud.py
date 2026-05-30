@@ -6,13 +6,17 @@
 """
 from __future__ import annotations
 
+import base64
 import json
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
-from rag.connectors import ConnectorAuthError
+import httpx
+
+from rag.connectors import ConnectorAuthError, ConnectorError
 from rag.types import ChangeEvent
 
 
@@ -35,6 +39,60 @@ def resolve_connected_account(connected_accounts: dict[str, str], account: str) 
             f"no Composio connected account configured for alias {account!r}"
         )
     return ca
+
+
+def dig(data: Any, dotted: str) -> Any:
+    """Return ``data[a][b][c]`` for ``dotted='a.b.c'``, or None if any hop is absent."""
+    cur = data
+    for key in dotted.split("."):
+        if not isinstance(cur, dict) or key not in cur:
+            return None
+        cur = cur[key]
+    return cur
+
+
+def download_bytes(url: str, *, timeout: float = 60.0) -> bytes:
+    """Fetch the raw bytes behind a (short-lived) Composio ``s3url`` download locator.
+
+    Composio's file/attachment download actions do NOT return inline content — they
+    return a temporary presigned URL that must be fetched promptly. Callers should
+    invoke this immediately after the download action while the URL is still valid.
+    """
+    try:
+        resp = httpx.get(url, follow_redirects=True, timeout=timeout)
+        resp.raise_for_status()
+    except httpx.HTTPError as e:
+        raise ConnectorError(f"download from locator URL failed: {e}") from e
+    return resp.content
+
+
+def resolve_bytes(
+    data: dict[str, Any],
+    s3url_path: str,
+    *,
+    b64_path: str | None = None,
+    urlsafe_b64: bool = False,
+) -> bytes:
+    """Resolve a download action's normalized payload to raw bytes.
+
+    Prefers the presigned ``s3url`` locator at ``s3url_path`` (the live-API path).
+    Falls back to an inline base64 field at ``b64_path`` when present (defensive —
+    some actions occasionally inline small payloads). Raises if neither is found.
+    """
+    url = dig(data, s3url_path)
+    if isinstance(url, str) and url:
+        return download_bytes(url)
+    if b64_path:
+        raw = dig(data, b64_path)
+        if isinstance(raw, str) and raw:
+            padded = raw + "=" * (-len(raw) % 4)
+            decoder = base64.urlsafe_b64decode if urlsafe_b64 else base64.b64decode
+            return decoder(padded)
+    raise ConnectorError(
+        f"download response had no content (no {s3url_path!r}"
+        + (f" or {b64_path!r}" if b64_path else "")
+        + ")"
+    )
 
 
 class ManifestStore:

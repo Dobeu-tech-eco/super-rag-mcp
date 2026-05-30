@@ -1,11 +1,16 @@
 """Google Drive connector (Composio transport).
 
 list_changes  -> GOOGLEDRIVE_FIND_FILE (paginated) -> CloudItem -> diff_items
-fetch_content -> GOOGLEDRIVE_DOWNLOAD_FILE -> RawDoc
+fetch_content -> GOOGLEDRIVE_DOWNLOAD_FILE -> s3url -> RawDoc
+
+Param/response names match the live Composio Google Drive actions: list pagination
+uses ``pageSize``/``pageToken``; download takes ``fileId`` and returns a presigned
+``downloaded_file_content.s3url`` (NOT inline base64). Google-native docs (Docs/Sheets/
+Slides) have ``size=null`` and are exported to PDF by Composio when no ``mime_type`` is
+passed — we rely on that default so the parser sees a normal PDF.
 """
 from __future__ import annotations
 
-import base64
 from collections.abc import Iterator
 from datetime import datetime
 
@@ -13,6 +18,7 @@ from rag.connectors._cloud import (
     CloudItem,
     ManifestStore,
     diff_items,
+    resolve_bytes,
     resolve_connected_account,
 )
 from rag.connectors.composio_client import ComposioClient
@@ -54,9 +60,9 @@ class GdriveConnector:
         items: list[CloudItem] = []
         page_token: str | None = None
         while True:
-            params: dict = {"page_size": 100}
+            params: dict = {"pageSize": 100}
             if page_token:
-                params["page_token"] = page_token
+                params["pageToken"] = page_token
             data = self.client.execute(
                 _LIST_ACTION, params, connected_account_id=connected_account_id
             )
@@ -83,9 +89,11 @@ class GdriveConnector:
     def fetch_content(self, account: str, doc_id: str) -> RawDoc:
         ca = resolve_connected_account(self.connected_accounts, account)
         data = self.client.execute(
-            _DOWNLOAD_ACTION, {"file_id": doc_id}, connected_account_id=ca
+            _DOWNLOAD_ACTION, {"fileId": doc_id}, connected_account_id=ca
         )
-        content = base64.b64decode(data["content_b64"])
+        content = resolve_bytes(
+            data, "downloaded_file_content.s3url", b64_path="content_b64"
+        )
         return RawDoc(
             doc_id=doc_id,
             source=self.name,
