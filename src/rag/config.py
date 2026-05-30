@@ -1,7 +1,9 @@
 """Configuration loading and validation."""
 from __future__ import annotations
+
 from pathlib import Path
 from typing import Literal, Union
+
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
@@ -72,6 +74,11 @@ class PathsConfig(BaseModel):
     metadata: Path
 
 
+class ComposioConfig(BaseModel):
+    api_key_env: str = "COMPOSIO_API_KEY"
+    connected_accounts: dict[str, str] = Field(default_factory=dict)
+
+
 class Config(BaseModel):
     sources: list[SourceConfig]
     embedding: EmbeddingConfig
@@ -79,6 +86,7 @@ class Config(BaseModel):
     ocr: OcrConfig
     llm: LlmConfig
     paths: PathsConfig
+    composio: ComposioConfig | None = None
 
     @field_validator("sources", mode="before")
     @classmethod
