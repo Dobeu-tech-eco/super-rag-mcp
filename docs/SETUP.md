@@ -341,10 +341,78 @@ and `dlq.jsonl`, a single `rag sync` rebuilds the entire searchable state.
 
 ---
 
-## 7. What to Run Next
+## 7. Cloud Sources (Drive / OneDrive / Gmail / Outlook via Composio)
+
+Cloud connectors fetch documents through [Composio](https://composio.dev). They are
+optional — a localfs-only setup ignores all of this.
+
+### 7.1 Install the cloud extra
+
+```powershell
+uv pip install -e ".[dev,cloud]"   # adds the `composio` SDK
+```
+
+### 7.2 Connect your accounts + get an API key
+
+1. In Composio, connect each Google Drive / OneDrive / Gmail / Outlook account you want
+   indexed. Each connection has an **account ID** (e.g. `googledrive_xxxx`,
+   `one_drive_xxxx`, `gmail_xxxx`, `outlook_xxxx`).
+2. Get your Composio **API key** and export it (the env var name must match
+   `composio.api_key_env` in config, default `COMPOSIO_API_KEY`):
+
+   ```powershell
+   $env:COMPOSIO_API_KEY = "your-key"      # this shell only; set permanently via setx
+   ```
+
+### 7.3 Configure sources
+
+In `config.yaml`, add a `composio:` block mapping aliases → account IDs, then add
+`sources` entries that reference those aliases (see `config.example.yaml` for the shape):
+
+```yaml
+composio:
+  api_key_env: COMPOSIO_API_KEY
+  connected_accounts:
+    personal-jeremy: googledrive_xxxx
+    work-dobeu: outlook_xxxx
+
+sources:
+  - kind: localfs
+    paths: [C:\Users\jswil\Documents\rag-test-corpus]
+  - kind: gdrive
+    accounts: [personal-jeremy]
+    mime_filter: [application/pdf]
+  - kind: outlook
+    accounts: [work-dobeu]      # no mime_filter — see note below
+```
+
+### 7.4 Sync and query
+
+```powershell
+rag sync                        # now also pulls Drive/OneDrive/Gmail/Outlook deltas
+rag query "what was in the April Twilio invoice?"
+```
+
+Cloud docs are downloaded via short-lived presigned URLs, parsed exactly like local
+files, and cited back with their `webViewLink` / `webUrl` (email attachments cite the
+message permalink). Per-account auth failures are isolated — one expired connection
+skips that account without aborting the run; failures land in the DLQ (`rag dlq list`,
+`rag dlq replay`).
+
+### 7.5 Gotchas (verified against the live API)
+
+- **Outlook: don't set `mime_filter`.** Microsoft Graph reports many attachments
+  (including PDFs) as `application/octet-stream`, so a mime filter silently drops them.
+  Omit it; the parser dispatches by content. (Gmail reports real mime types, so a Gmail
+  `mime_filter` is fine.)
+- **First Gmail sync on a huge mailbox is expensive.** Every `has:attachment` message is
+  hydrated with its own API call to read attachment IDs. Start with a small/secondary
+  account; subsequent syncs are incremental via the last-run watermark.
+- **Native Google Docs/Sheets/Slides** are exported to PDF by Composio on download
+  (they have `size=null`); they index fine as PDFs.
+
+## 8. What to Run Next
 
 - Full test suite: `pytest` (unit tests are hermetic; integration tests are gated by
   `-m integration` and require a live Ollama + `claude` CLI).
 - Lint: `ruff check src tests`.
-- Plan progression: `docs/superpowers/plans/2026-05-23-rag-mvp-plan.md` for the
-  remaining phases (Drive, OneDrive, Email connectors).

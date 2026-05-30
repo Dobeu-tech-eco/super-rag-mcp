@@ -14,10 +14,15 @@ sources:
   #     mime_filter: [application/pdf]
   # - kind: gmail
   #     accounts: [personal-jeremy]      # indexes attachments only
-  #     mime_filter: [application/pdf]
+  #     mime_filter: [application/pdf]   # Gmail reports real attachment mime types
+  #     # NOTE: the first Gmail sync hydrates every has:attachment message (one API call
+  #     # each). On a huge mailbox this is slow/rate-limit-prone — start with a small
+  #     # account; later syncs are incremental via the last-run watermark.
   # - kind: outlook
   #     accounts: [work-dobeu]           # indexes attachments only; M365/Enterprise mailboxes
-  #     mime_filter: [application/pdf]
+  #     # NOTE: do NOT set mime_filter for outlook — Graph reports many attachments
+  #     # (incl. PDFs) as application/octet-stream, so a mime filter would drop them.
+  #     # Omitting it indexes all non-inline file attachments; the parser dispatches by content.
 
 embedding:
   model: bge-small-en-v1.5

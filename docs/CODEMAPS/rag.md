@@ -1,6 +1,6 @@
 # Codemap — `src/rag/`
 
-**Last updated:** 2026-05-24
+**Last updated:** 2026-05-30
 **Scope:** Every Python module under `src/rag/`. Use this to find the right file fast.
 
 ## Module index
@@ -21,8 +21,14 @@
 | `query.py` | `QueryEngine.ask(question) -> Answer` — embed/retrieve/hydrate/generate. |
 | `connectors/__init__.py` | `Connector` Protocol, `ConnectorError`, `ConnectorAuthError`, `ConnectorRateLimitError`. |
 | `connectors/localfs.py` | `LocalfsConnector` — walks roots, manifest-based delete detection. |
+| `connectors/_cloud.py` | Shared cloud helpers: `CloudItem`, `ManifestStore`, `diff_items`, `resolve_connected_account`, and the download layer `download_bytes`/`resolve_bytes`/`dig` (presigned `s3url` → bytes). |
+| `connectors/composio_client.py` | `ComposioClient` Protocol, `unwrap_response` (envelope→data + typed errors), `ComposioSDKClient` (real SDK binding, integration-gated). |
+| `connectors/gdrive.py` | `GdriveConnector` — `GOOGLEDRIVE_FIND_FILE`/`GOOGLEDRIVE_DOWNLOAD_FILE`. |
+| `connectors/onedrive.py` | `OneDriveConnector` — recursive `ONE_DRIVE_LIST_FOLDER_CHILDREN` + `ONE_DRIVE_DOWNLOAD_FILE`. |
+| `connectors/gmail.py` | `GmailConnector` — attachments only; fetch-emails + per-message hydrate + `GMAIL_GET_ATTACHMENT`. |
+| `connectors/outlook.py` | `OutlookConnector` — attachments only; search + list-attachments + `OUTLOOK_DOWNLOAD_OUTLOOK_ATTACHMENT`. |
 | `serve/__init__.py` | Package marker. |
-| `serve/cli.py` | Click CLI: `sync`, `query`, `status`, `dlq list`. |
+| `serve/cli.py` | Click CLI: `sync`, `query`, `status`, `dlq list`, `dlq replay`; wires all connectors. |
 
 ---
 
@@ -65,12 +71,6 @@
 **Format:** JSONL; dedup key is `(doc_id, source, account)`.
 **Depended on by:** `sync.py`, `serve/cli.py`.
 
-### `sync.py`
-**Public:** `SyncOrchestrator(connectors, accounts_per_connector, embedder, index, metadata, dlq, chunk_size, overlap, ocr_strategy)` with `run() -> RunResult`; `RunResult(docs_processed, docs_failed, chunks_indexed)`.
-**Internal:** `_process_doc(conn, event)` does fetch → hash → skip-if-unchanged → parse → chunk → embed → index swap → metadata upsert.
-**Imports:** `chunker`, `parser`, `connectors` (Connector, ConnectorAuthError), `dlq`, `metadata`, `types`; TYPE_CHECKING: `embedder`, `index`.
-**Depended on by:** `serve/cli.py`.
-
 ### `llm.py`
 **Public:** `LLMBackend` Protocol (`generate(system, user) -> str`), `ClaudeCLIBackend(command, timeout)`, `OllamaBackend(model, base_url, timeout)`, `route_query(raw, claude, ollama, private_prefix, default, private_routes_to) -> (cleaned, is_private)`.
 **Depended on by:** `query.py`, `serve/cli.py`. `ClaudeCLIBackend` shells out to `claude --print`; `OllamaBackend` POSTs `/api/chat`.
@@ -89,9 +89,26 @@
 **Internal:** `_scan_root`, `_MANIFEST_NAME = ".rag-localfs-manifest.json"`, `_SUPPORTED_EXTS = {.pdf, .txt, .md, .docx}`.
 **Depended on by:** `serve/cli.py`. Writes a per-root manifest so deletes between runs are observable.
 
+### `connectors/_cloud.py`
+**Public:** `CloudItem` (pre-fetch listing item), `ManifestStore` (per-(source,account) snapshot for delete detection), `diff_items(...)` (current set → upsert/delete `ChangeEvent`s, mirrors localfs), `resolve_connected_account`, and the download layer: `download_bytes(url)` (httpx GET of a presigned URL), `resolve_bytes(data, s3url_path, b64_path=…)` (prefer s3url, fall back to inline base64), `dig(data, "a.b.c")`.
+**Depended on by:** all four cloud connectors. The s3url two-step download is the central contract: Composio download actions return a short-lived locator, not inline bytes.
+
+### `connectors/composio_client.py`
+**Public:** `ComposioClient` Protocol (`execute(action, params, *, connected_account_id)`), `unwrap_response(resp)` (envelope→`data`, maps auth/rate errors), `ComposioSDKClient(api_key)` (real binding; lazy-imports `composio`, integration-gated).
+**Depended on by:** cloud connectors (via Protocol — kept SDK-free for unit tests), `serve/cli.py` (builds the real client).
+
+### `connectors/{gdrive,onedrive,gmail,outlook}.py`
+**Public:** `GdriveConnector`, `OneDriveConnector`, `GmailConnector`, `OutlookConnector` — each `(client, connected_accounts, state_dir, …filters)` implementing the `Connector` Protocol. Drive/OneDrive index files; Gmail/Outlook index attachments only (`doc_id="{message_id}:{attachment_id}"`). All downloads resolve through `_cloud.resolve_bytes`.
+**Depended on by:** `serve/cli.py`. Listing/download contract verified against the live Composio API (Drive + Outlook end-to-end; Gmail/OneDrive at schema level).
+
+### `sync.py`
+**Public:** `SyncOrchestrator(...)` with `run() -> RunResult` and `replay_doc(source, account, doc_id) -> int` (DLQ reprocessing); `RunResult(...)`.
+**Internal:** `_process_doc(conn, event)` does fetch → hash → skip-if-unchanged → parse → chunk → embed → index swap → metadata upsert.
+**Depended on by:** `serve/cli.py`.
+
 ### `serve/cli.py`
-**Public:** `main` (Click group) with subcommands `sync`, `query`, `status`, `dlq list`.
-**Internal:** `_build(cfg_path)` wires `Config → MetadataStore + DLQ + VectorIndex + OllamaEmbedder`. `_INDEX_DIM = 384` (bge-small-en-v1.5).
+**Public:** `main` (Click group) with subcommands `sync`, `query`, `status`, `dlq list`, `dlq replay`.
+**Internal:** `_build(cfg_path)` wires `Config → MetadataStore + DLQ + VectorIndex + OllamaEmbedder`; `_build_connectors(cfg)` instantiates every source kind (lazy-builds one shared `ComposioSDKClient` for cloud sources; manifests under `bundle_dir/manifests`); `_CLOUD_KINDS` registry; `_INDEX_DIM = 384`.
 **Depended on by:** packaged entrypoint `rag` (see `pyproject.toml`).
 
 ---

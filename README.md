@@ -6,7 +6,7 @@ Self-hosted retrieval-augmented generation over your personal cloud and local do
 
 **Phase 1 (Local-files MVP): shipped.** End-to-end pipeline works against PDFs, DOCX, TXT, and Markdown on the local filesystem with OCR fallback, semantic chunking, Ollama embeddings, a turbovec vector index, and dual LLM backends (Claude Code CLI + local Ollama). Tasks 1–15 of the MVP plan are merged; unit + integration suites are green.
 
-Next up — Phase 2: Composio-driven cloud connectors (Google Drive, OneDrive, Gmail, Outlook).
+**Phase 2 (Cloud connectors): wired.** Google Drive, OneDrive, Gmail (attachments), and Outlook (attachments) are implemented over Composio and wired into `rag sync`. The Composio request/response contract (action names, params, and the presigned-`s3url` download model) is validated against the live API for Drive and Outlook; install with the `cloud` extra and configure accounts per [docs/SETUP.md](docs/SETUP.md) §7.
 
 ## Quickstart (live)
 
@@ -30,7 +30,7 @@ Use `private: ...` as a query prefix to keep generation on the local Ollama back
 
 ## Architecture at a glance
 
-**Sync path.** `rag sync` walks each configured `Connector` (currently `LocalfsConnector`) for change events since the last successful run. New/modified docs are fetched as `RawDoc`, parsed (PyMuPDF for PDFs with auto-detect OCR fallback, python-docx for DOCX, plain decode for text), chunked sentence-aware via LlamaIndex with per-chunk page-range mapping, embedded in batch through Ollama, and written atomically into the turbovec `VectorIndex` and SQLite `MetadataStore`. Failures land in a JSONL `DeadLetterQueue`; the manifest in each local root makes deletes observable across runs.
+**Sync path.** `rag sync` walks each configured `Connector` (`LocalfsConnector` plus the Composio-backed `GdriveConnector`, `OneDriveConnector`, `GmailConnector`, `OutlookConnector`) for change events since the last successful run. New/modified docs are fetched as `RawDoc`, parsed (PyMuPDF for PDFs with auto-detect OCR fallback, python-docx for DOCX, plain decode for text), chunked sentence-aware via LlamaIndex with per-chunk page-range mapping, embedded in batch through Ollama, and written atomically into the turbovec `VectorIndex` and SQLite `MetadataStore`. Failures land in a JSONL `DeadLetterQueue`; the manifest in each local root makes deletes observable across runs.
 
 **Query path.** `rag query` strips the optional `private:` prefix, embeds the question with the same Ollama model used at ingest, runs a top-k search against the vector index, hydrates the resulting chunk IDs from SQLite to get text + source URLs + page numbers, and hands a prompt with citations to the routed `LLMBackend` (Claude CLI by default, Ollama when `private:` was used). The CLI renders the answer plus a citations table.
 
