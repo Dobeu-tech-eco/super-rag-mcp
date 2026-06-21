@@ -5,13 +5,13 @@ Pure handler functions take injected dependencies so they unit-test with fakes;
 ``mcp`` is an optional, lazy-imported dependency (see build_app / main below).
 Return types are TypedDicts so FastMCP can emit a structured outputSchema.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from rag.serve.cli import _build, _build_connectors
-
-from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from rag.dlq import DeadLetterQueue
@@ -54,7 +54,7 @@ def actionable_hint(exc: Exception) -> str | None:
     return None
 
 
-def run_query(engine: "QueryEngine", question: str) -> QueryResult:
+def run_query(engine: QueryEngine, question: str) -> QueryResult:
     """Embed -> retrieve -> generate, returning a JSON-serializable answer."""
     ans = engine.ask(question)
     return {
@@ -73,14 +73,12 @@ def run_query(engine: "QueryEngine", question: str) -> QueryResult:
     }
 
 
-def run_status(meta: "MetadataStore", dlq: "DeadLetterQueue") -> StatusResult:
+def run_status(meta: MetadataStore, dlq: DeadLetterQueue) -> StatusResult:
     """Summarize last run + DLQ depth (mirrors `rag status`)."""
     runs = meta.list_runs()
     try:
         dlq_count = sum(
-            1
-            for line in dlq.path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
+            1 for line in dlq.path.read_text(encoding="utf-8").splitlines() if line.strip()
         )
     except FileNotFoundError:
         dlq_count = 0
@@ -91,7 +89,7 @@ def run_status(meta: "MetadataStore", dlq: "DeadLetterQueue") -> StatusResult:
     }
 
 
-def run_dlq_list(dlq: "DeadLetterQueue", limit: int = 50) -> list[dict[str, Any]]:
+def run_dlq_list(dlq: DeadLetterQueue, limit: int = 50) -> list[dict[str, Any]]:
     """Return up to ``limit`` dead-letter entries."""
     out: list[dict[str, Any]] = []
     for entry in dlq.iter_entries():
@@ -147,9 +145,7 @@ def build_app(cfg_path: Path):
                 index=index,
                 metadata=meta,
                 claude=ClaudeCLIBackend(),
-                ollama=OllamaBackend(
-                    model=cfg.llm.ollama_model, base_url=cfg.embedding.ollama_url
-                ),
+                ollama=OllamaBackend(model=cfg.llm.ollama_model, base_url=cfg.embedding.ollama_url),
                 top_k=5,
                 private_prefix=cfg.llm.private_prefix,
                 default_backend=cfg.llm.default,
@@ -158,9 +154,7 @@ def build_app(cfg_path: Path):
         return _engine["e"]
 
     _READ = ToolAnnotations(readOnlyHint=True, idempotentHint=True, openWorldHint=True)
-    _WRITE = ToolAnnotations(
-        readOnlyHint=False, idempotentHint=False, openWorldHint=True
-    )
+    _WRITE = ToolAnnotations(readOnlyHint=False, idempotentHint=False, openWorldHint=True)
 
     @app.tool(annotations=_READ)
     def rag_query(question: str, top_k: int = 5) -> QueryResult:
