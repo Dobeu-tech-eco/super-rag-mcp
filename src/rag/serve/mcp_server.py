@@ -95,3 +95,22 @@ def run_dlq_list(dlq: "DeadLetterQueue", limit: int = 50) -> list[dict[str, Any]
             break
         out.append(entry)
     return out
+
+
+class SyncResult(TypedDict):
+    docs_processed: int
+    docs_failed: int
+    chunks_indexed: int
+
+
+def run_sync(orch: Any, index: Any, *, full: bool = False) -> SyncResult:
+    """Run a sync pass; persist the vector index even if the run raises."""
+    try:
+        result = orch.run(full=full)
+    finally:
+        index.save()
+    return {
+        "docs_processed": result.docs_processed,
+        "docs_failed": result.docs_failed,
+        "chunks_indexed": result.chunks_indexed,
+    }
