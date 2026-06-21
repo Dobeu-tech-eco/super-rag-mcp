@@ -202,7 +202,12 @@ def build_app(cfg_path: Path):
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Console entry point (`rag-mcp`). Serves the RAG tools over stdio."""
+    """Console entry point (`rag-mcp`).
+
+    Default ``stdio`` transport keeps the server local and private. Pass
+    ``--transport streamable-http`` (with optional ``--host``/``--port``) to serve
+    remotely — note the index and embeddings then leave the local machine.
+    """
     import argparse
     import os
 
@@ -213,9 +218,29 @@ def main(argv: list[str] | None = None) -> None:
         default=os.environ.get("RAG_CONFIG", "config.yaml"),
         help="Path to config.yaml (or set RAG_CONFIG).",
     )
+    parser.add_argument(
+        "--transport",
+        default="stdio",
+        choices=["stdio", "streamable-http"],
+        help="MCP transport (default: stdio).",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind host for streamable-http transport.",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Bind port for streamable-http transport.",
+    )
     args = parser.parse_args(argv)
     app = build_app(Path(args.config))
-    app.run(transport="stdio")
+    if args.transport == "streamable-http":
+        app.settings.host = args.host
+        app.settings.port = args.port
+    app.run(transport=args.transport)
 
 
 if __name__ == "__main__":
