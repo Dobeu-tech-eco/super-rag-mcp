@@ -7,6 +7,10 @@ Return types are TypedDicts so FastMCP can emit a structured outputSchema.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
+from rag.serve.cli import _build, _build_connectors
+
 from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
@@ -114,3 +118,89 @@ def run_sync(orch: Any, index: Any, *, full: bool = False) -> SyncResult:
         "docs_failed": result.docs_failed,
         "chunks_indexed": result.chunks_indexed,
     }
+
+
+def build_app(cfg_path: Path):
+    """Construct the FastMCP app, wiring tools to the RAG pipeline.
+
+    ``mcp`` is imported here (not at module top) so the package stays optional.
+    """
+    from mcp.server.fastmcp import FastMCP
+    from mcp.types import ToolAnnotations
+
+    from rag.llm import ClaudeCLIBackend, OllamaBackend
+    from rag.query import QueryEngine
+    from rag.sync import SyncOrchestrator
+
+    cfg, meta, dlq, index, embedder = _build(cfg_path)
+    app = FastMCP("super-rag")
+    _engine: dict[str, QueryEngine] = {}
+
+    def _reraise(exc: Exception) -> Exception:
+        hint = actionable_hint(exc)
+        return RuntimeError(f"{exc} — {hint}") if hint else exc
+
+    def _query_engine() -> QueryEngine:
+        if "e" not in _engine:
+            _engine["e"] = QueryEngine(
+                embedder=embedder,
+                index=index,
+                metadata=meta,
+                claude=ClaudeCLIBackend(),
+                ollama=OllamaBackend(
+                    model=cfg.llm.ollama_model, base_url=cfg.embedding.ollama_url
+                ),
+                top_k=5,
+                private_prefix=cfg.llm.private_prefix,
+                default_backend=cfg.llm.default,
+                private_routes_to=cfg.llm.private_tag_routes_to,
+            )
+        return _engine["e"]
+
+    _READ = ToolAnnotations(readOnlyHint=True, idempotentHint=True, openWorldHint=True)
+    _WRITE = ToolAnnotations(
+        readOnlyHint=False, idempotentHint=False, openWorldHint=True
+    )
+
+    @app.tool(annotations=_READ)
+    def rag_query(question: str, top_k: int = 5) -> QueryResult:
+        """Ask the indexed corpus a question. Prefix with the configured private
+        prefix (default 'private:') to force local-only generation."""
+        try:
+            eng = _query_engine()
+            eng.top_k = top_k
+            return run_query(eng, question)
+        except Exception as exc:
+            raise _reraise(exc) from exc
+
+    @app.tool(annotations=_WRITE)
+    def rag_sync(full: bool = False) -> SyncResult:
+        """Ingest deltas from all configured sources. full=True reindexes from scratch."""
+        try:
+            connectors, accounts = _build_connectors(cfg)
+            orch = SyncOrchestrator(
+                connectors=connectors,
+                accounts_per_connector=accounts,
+                embedder=embedder,
+                index=index,
+                metadata=meta,
+                dlq=dlq,
+                chunk_size=cfg.chunking.fallback_size,
+                overlap=cfg.chunking.overlap,
+                ocr_strategy=cfg.ocr.strategy if cfg.ocr.enabled else "never",
+            )
+            return run_sync(orch, index, full=full)
+        except Exception as exc:
+            raise _reraise(exc) from exc
+
+    @app.tool(annotations=_READ)
+    def rag_status() -> StatusResult:
+        """Last-run summary and dead-letter-queue depth."""
+        return run_status(meta, dlq)
+
+    @app.tool(name="rag_dlq_list", annotations=_READ)
+    def rag_dlq_list(limit: int = 50) -> list[dict]:
+        """List up to ``limit`` dead-letter entries."""
+        return run_dlq_list(dlq, limit)
+
+    return app
