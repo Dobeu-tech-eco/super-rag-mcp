@@ -1,0 +1,8 @@
+{
+  "name": "super-rag",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postCreateCommand": "pip install uv && uv pip install --system -e '.[dev,mcp,cloud]'",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {}
+  }
+}
