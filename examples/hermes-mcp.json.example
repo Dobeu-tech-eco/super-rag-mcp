@@ -1,13 +1,13 @@
 {
-    "mcpServers": {
-        "super-rag": {
-            "command": "rag-mcp",
-            "args": ["--config", "C:\\path\\to\\super-rag\\config.yaml"],
-            "env": {"RAG_CONFIG": "C:\\path\\to\\super-rag\\config.yaml"},
-        },
-        "composio-unified": {
-            "url": "https://REPLACE_WITH_SESSION_MCP_URL",
-            "headers": {"x-api-key": "REPLACE_WITH_SESSION_HEADER"},
-        },
+  "mcpServers": {
+    "super-rag": {
+      "command": "rag-mcp",
+      "args": ["--config", "C:\\path\\to\\super-rag\\config.yaml"],
+      "env": { "RAG_CONFIG": "C:\\path\\to\\super-rag\\config.yaml" }
+    },
+    "composio-unified": {
+      "url": "https://REPLACE_WITH_SESSION_MCP_URL",
+      "headers": { "x-api-key": "REPLACE_WITH_SESSION_HEADER" }
     }
+  }
 }
