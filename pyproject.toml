@@ -32,9 +32,15 @@ dev = [
 cloud = [
     "composio>=0.7",
 ]
+# MCP server transport. Optional: CLI-only setups don't need it.
+# Install with: uv pip install -e ".[dev,mcp]"
+mcp = [
+    "mcp>=1.2",
+]
 
 [project.scripts]
 rag = "rag.serve.cli:main"
+rag-mcp = "rag.serve.mcp_server:main"
 
 [build-system]
 requires = ["hatchling"]
