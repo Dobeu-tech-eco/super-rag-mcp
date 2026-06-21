@@ -37,30 +37,70 @@ rag-mcp -c config.yaml          # serves over stdio
 
 Merge that JSON into your MCP client config (e.g. `~/.cursor/mcp.json`).
 
-## HTTP transport & Docker (optional)
+## HTTP transport (remote URL)
 
-`rag-mcp` defaults to stdio (local, private). For remote hosting, switch transport:
+`rag-mcp` defaults to stdio (local, private). To expose it as a URL any MCP client can
+call, switch to the `streamable-http` transport. **A bearer token is required** — the HTTP
+endpoint exposes your corpus, so the server refuses to start without `RAG_MCP_TOKEN`:
 
 ```bash
-rag-mcp -c config.yaml --transport streamable-http --host 0.0.0.0 --port 8000
+export RAG_MCP_TOKEN="$(openssl rand -hex 32)"      # any strong secret
+rag-mcp -c config.yaml --transport streamable-http --host 127.0.0.1 --port 8000
+# serves at  http://127.0.0.1:8000/mcp
 ```
 
-Or run it in a container (installs the `[mcp,cloud]` extras):
+- Keep `--host 127.0.0.1` and reach it through a tunnel/reverse proxy (below). Only bind
+  `--host 0.0.0.0` when something authenticated sits in front of the port.
+- **Read-only by default:** over HTTP, only the read tools (`rag_query`, `rag_status`,
+  `rag_dlq_list`) are exposed. Set `RAG_MCP_ALLOW_SYNC=1` to additionally expose the
+  `rag_sync` write tool.
+
+Clients send the token as a header:
+
+```json
+"super-rag": {
+  "url": "https://<your-host>/mcp",
+  "headers": { "Authorization": "Bearer <RAG_MCP_TOKEN>" }
+}
+```
+
+### Get a public URL with a tunnel
+
+The cheapest path keeps generation (Ollama + Claude CLI) on your machine and just forwards
+requests in — your corpus never leaves disk, so `private:` stays truly local.
+
+```bash
+# instant, ephemeral, no account ($0):
+cloudflared tunnel --url http://localhost:8000      # -> https://<rand>.trycloudflare.com/mcp
+
+# stable low-cost alternatives:
+ngrok http 8000                                     # free static domain + your Bearer token
+# or a cloudflared *named* tunnel if you own a domain
+```
+
+The Bearer token protects the URL even while the tunnel is public.
+
+## Docker (optional, for a remote host)
 
 ```bash
 docker build -t super-rag-mcp .
 docker run --rm -p 8000:8000 \
+  -e RAG_MCP_TOKEN="$RAG_MCP_TOKEN" \
   -e COMPOSIO_API_KEY="$COMPOSIO_API_KEY" \
   -v /host/rag-data:/data \
   super-rag-mcp
 ```
 
-The image reads `config.yaml` from `/data` (`RAG_CONFIG=/data/config.yaml`); mount
-your `bundle_dir` there too. `COMPOSIO_API_KEY` is passed at runtime (`-e`) and is
-never baked into the image.
+The image reads `config.yaml` from `/data` (`RAG_CONFIG=/data/config.yaml`); mount your
+`bundle_dir` there too. Secrets are passed at runtime (`-e`), never baked into the image.
 
-> **Privacy:** HTTP transport moves the index and embeddings off the local machine.
-> Keep stdio for fully local setups; only enable HTTP when you intend to serve remotely.
+> **Heads-up:** the current image installs only `.[mcp,cloud]` — it has no Ollama and no
+> authenticated Claude CLI, so `rag_query`/`rag_sync` need a generation backend provided to
+> the container (a co-located/remote Ollama, or a future API backend). For a fully private,
+> always-on URL at ~$0, prefer the **local server + tunnel** above.
+
+> **Privacy:** any remote *container* deployment moves the index and embeddings off your
+> machine, which voids the `private:`-stays-local guarantee. The tunnel approach does not.
 
 ## Cloud dev environment (Ona / Gitpod)
 

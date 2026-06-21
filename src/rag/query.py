@@ -43,7 +43,7 @@ class QueryEngine:
         self.default_backend = default_backend
         self.private_routes_to = private_routes_to
 
-    def ask(self, question: str) -> Answer:
+    def ask(self, question: str, top_k: int | None = None) -> Answer:
         cleaned, is_private = route_query(
             question, claude=self.claude, ollama=self.ollama,
             private_prefix=self.private_prefix,
@@ -51,8 +51,9 @@ class QueryEngine:
             private_routes_to=self.private_routes_to,
         )
 
+        k = self.top_k if top_k is None else top_k
         qvec = np.array(self.embedder.embed_query(cleaned), dtype=np.float32)
-        hits = self.index.search(qvec, k=self.top_k)
+        hits = self.index.search(qvec, k=k)
         chunk_ids = [h[0] for h in hits]
         score_by_id = {h[0]: h[1] for h in hits}
 

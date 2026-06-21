@@ -55,13 +55,13 @@ class SyncOrchestrator:
         self.overlap = overlap
         self.ocr_strategy = ocr_strategy
 
-    def run(self) -> RunResult:
+    def run(self, *, full: bool = False) -> RunResult:
         run_id = self.metadata.start_run()
         docs_processed = 0
         docs_failed = 0
         chunks_indexed = 0
         try:
-            since = self.metadata.last_successful_run_at()
+            since = None if full else self.metadata.last_successful_run_at()
             for source_name, conn in self.connectors.items():
                 accounts = self.accounts_per_connector.get(source_name, [])
                 for account in accounts:

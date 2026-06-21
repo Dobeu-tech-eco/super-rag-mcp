@@ -119,7 +119,8 @@ def main() -> None:
 
 @main.command()
 @click.option("--config", "-c", default="config.yaml", type=click.Path(exists=True))
-def sync(config: str) -> None:
+@click.option("--full", is_flag=True, help="Re-index all sources; ignore last successful run watermark.")
+def sync(config: str, full: bool) -> None:
     """Run a sync pass: pull deltas, parse, embed, index."""
     cfg, meta, dlq, index, embedder = _build(Path(config))
     connectors, accounts = _build_connectors(cfg)
@@ -129,7 +130,7 @@ def sync(config: str) -> None:
         chunk_size=cfg.chunking.fallback_size, overlap=cfg.chunking.overlap,
         ocr_strategy=cfg.ocr.strategy if cfg.ocr.enabled else "never",
     )
-    result = orch.run()
+    result = orch.run(full=full)
     index.save()
     console.print(f"[green]Sync complete[/]: processed={result.docs_processed} "
                   f"failed={result.docs_failed} chunks={result.chunks_indexed}")

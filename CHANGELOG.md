@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-21
+
+### Added
+- **Bearer-token auth for the HTTP MCP transport.** `--transport streamable-http` now
+  requires `RAG_MCP_TOKEN` and refuses to start without it (fail-closed); requests must send
+  `Authorization: Bearer <token>`. Implemented as pure-ASGI middleware so the streaming
+  response is preserved (`src/rag/serve/_http_auth.py`).
+- **Read-only-by-default remote surface.** Over HTTP only `rag_query`/`rag_status`/`rag_dlq_list`
+  are exposed; set `RAG_MCP_ALLOW_SYNC=1` to also expose the `rag_sync` write tool.
+- Tunnel quickstart in `docs/mcp-server.md` (cloudflared/ngrok) for a public URL while keeping
+  generation — and the corpus — local.
+
+### Fixed
+- **`rag sync --full` / `rag_sync(full=True)`:** re-index from scratch by ignoring the last
+  successful run watermark (`SyncOrchestrator.run(full=…)`).
+- **Concurrency:** `rag_query` no longer mutates a shared `QueryEngine` (`eng.top_k = …`);
+  `top_k` is threaded per call and tool execution is serialized with a lock so a query can't
+  read the index mid-sync. `QueryEngine.ask` gained a backward-compatible `top_k` parameter.
+
+### Changed
+- Default HTTP bind documented as `127.0.0.1` (use a tunnel/proxy), not `0.0.0.0`.
+- `__version__` synced to the packaged version (was stale at `0.1.0`).
+
 ## [0.2.0] - 2026-06-21
 
 ### Added

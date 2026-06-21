@@ -1,8 +1,9 @@
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
-import numpy as np
+
 import pytest
+
 from rag.sync import SyncOrchestrator
 from rag.types import ChangeEvent, RawDoc
 
@@ -43,8 +44,8 @@ def fake_connector(tmp_path: Path):
 
 
 def test_orchestrator_indexes_one_doc(tmp_path: Path, fake_connector, fake_embedder, fake_index):
-    from rag.metadata import MetadataStore
     from rag.dlq import DeadLetterQueue
+    from rag.metadata import MetadataStore
     meta = MetadataStore(tmp_path / "meta.sqlite")
     dlq = DeadLetterQueue(tmp_path / "dlq.jsonl")
 
@@ -62,14 +63,42 @@ def test_orchestrator_indexes_one_doc(tmp_path: Path, fake_connector, fake_embed
     fake_index.add_batch.assert_called_once()
 
 
-def test_orchestrator_isolates_per_doc_failure(tmp_path: Path, fake_embedder, fake_index):
-    from rag.metadata import MetadataStore
+def test_orchestrator_full_sync_ignores_watermark(
+    tmp_path: Path, fake_connector, fake_embedder, fake_index,
+):
     from rag.dlq import DeadLetterQueue
+    from rag.metadata import MetadataStore
+
+    meta = MetadataStore(tmp_path / "meta.sqlite")
+    dlq = DeadLetterQueue(tmp_path / "dlq.jsonl")
+    run_id = meta.start_run()
+    meta.finish_run(run_id, status="success", docs_processed=0, chunks_indexed=0)
+
+    orch = SyncOrchestrator(
+        connectors={"localfs": fake_connector},
+        accounts_per_connector={"localfs": ["default"]},
+        embedder=fake_embedder,
+        index=fake_index,
+        metadata=meta,
+        dlq=dlq,
+        chunk_size=512,
+        overlap=64,
+        ocr_strategy="never",
+    )
+    orch.run(full=True)
+    fake_connector.list_changes.assert_called_once_with("default", None)
+
+
+def test_orchestrator_isolates_per_doc_failure(tmp_path: Path, fake_embedder, fake_index):
+    from rag.dlq import DeadLetterQueue
+    from rag.metadata import MetadataStore
     meta = MetadataStore(tmp_path / "meta.sqlite")
     dlq = DeadLetterQueue(tmp_path / "dlq.jsonl")
 
-    good = tmp_path / "good.txt"; good.write_text("ok", encoding="utf-8")
-    bad = tmp_path / "bad.txt"; bad.write_text("boom", encoding="utf-8")
+    good = tmp_path / "good.txt"
+    good.write_text("ok", encoding="utf-8")
+    bad = tmp_path / "bad.txt"
+    bad.write_text("boom", encoding="utf-8")
 
     conn = MagicMock()
     conn.name = "localfs"

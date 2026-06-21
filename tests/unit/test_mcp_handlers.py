@@ -15,9 +15,11 @@ class _FakeEngine:
     def __init__(self) -> None:
         self.top_k = 5
         self.asked: list[str] = []
+        self.top_ks: list[int | None] = []
 
-    def ask(self, question: str) -> Answer:
+    def ask(self, question: str, top_k: int | None = None) -> Answer:
         self.asked.append(question)
+        self.top_ks.append(top_k)
         return Answer(
             text="the answer",
             private=question.startswith("private:"),
@@ -65,6 +67,13 @@ def test_run_query_serializes_answer_and_citations():
         }
     ]
     assert eng.asked == ["what is x?"]
+
+
+def test_run_query_threads_top_k_without_mutating_engine():
+    eng = _FakeEngine()
+    run_query(eng, "q", top_k=9)
+    assert eng.top_ks == [9]
+    assert eng.top_k == 5  # per-call top_k must not clobber shared engine state
 
 
 def test_run_status_counts_runs_and_dlq(tmp_path):

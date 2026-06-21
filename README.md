@@ -31,10 +31,13 @@ uv pip install -e ".[mcp]"
 rag-mcp -c config.yaml                 # stdio (local, private) — default
 ```
 
-Four tools are registered: `rag_query`, `rag_sync`, `rag_status`, `rag_dlq_list`. For
-remote hosting, run `rag-mcp --transport streamable-http --host 0.0.0.0 --port 8000`
-or use the provided `Dockerfile`. See [docs/mcp-server.md](docs/mcp-server.md) for tool
-schemas, client wiring, the Docker/HTTP path, and the Ona/Gitpod dev environment.
+Four tools are registered: `rag_query`, `rag_sync`, `rag_status`, `rag_dlq_list`. For a
+remote URL, set `RAG_MCP_TOKEN` and run
+`rag-mcp --transport streamable-http --host 127.0.0.1 --port 8000`, then expose it through a
+tunnel (cloudflared/ngrok). The HTTP transport requires the bearer token and is read-only by
+default (`rag_sync` needs `RAG_MCP_ALLOW_SYNC=1`). See
+[docs/mcp-server.md](docs/mcp-server.md) for tool schemas, client wiring, the tunnel/Docker
+path, and the Ona/Gitpod dev environment.
 
 ## Prerequisites
 

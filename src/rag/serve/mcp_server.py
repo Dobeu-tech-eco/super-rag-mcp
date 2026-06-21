@@ -8,6 +8,7 @@ Return types are TypedDicts so FastMCP can emit a structured outputSchema.
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -54,9 +55,13 @@ def actionable_hint(exc: Exception) -> str | None:
     return None
 
 
-def run_query(engine: QueryEngine, question: str) -> QueryResult:
-    """Embed -> retrieve -> generate, returning a JSON-serializable answer."""
-    ans = engine.ask(question)
+def run_query(engine: QueryEngine, question: str, top_k: int | None = None) -> QueryResult:
+    """Embed -> retrieve -> generate, returning a JSON-serializable answer.
+
+    ``top_k`` is threaded per call (no shared-engine mutation) so concurrent HTTP
+    requests don't clobber each other; ``None`` uses the engine's configured value.
+    """
+    ans = engine.ask(question, top_k=top_k)
     return {
         "answer": ans.text,
         "private": ans.private,
@@ -118,10 +123,12 @@ def run_sync(orch: Any, index: Any, *, full: bool = False) -> SyncResult:
     }
 
 
-def build_app(cfg_path: Path):
+def build_app(cfg_path: Path, *, allow_sync: bool = True):
     """Construct the FastMCP app, wiring tools to the RAG pipeline.
 
     ``mcp`` is imported here (not at module top) so the package stays optional.
+    ``allow_sync=False`` omits the write ``rag_sync`` tool — used to keep a remote
+    HTTP surface read-only unless explicitly opted in.
     """
     from mcp.server.fastmcp import FastMCP
     from mcp.types import ToolAnnotations
@@ -133,6 +140,9 @@ def build_app(cfg_path: Path):
     cfg, meta, dlq, index, embedder = _build(cfg_path)
     app = FastMCP("super-rag")
     _engine: dict[str, QueryEngine] = {}
+    # Serializes tool calls so a query never reads the index mid-swap during a
+    # concurrent sync (FastMCP runs sync tools in a threadpool over HTTP).
+    _lock = threading.Lock()
 
     def _reraise(exc: Exception) -> Exception:
         hint = actionable_hint(exc)
@@ -161,32 +171,33 @@ def build_app(cfg_path: Path):
         """Ask the indexed corpus a question. Prefix with the configured private
         prefix (default 'private:') to force local-only generation."""
         try:
-            eng = _query_engine()
-            # single cached engine; top_k mutation is safe under stdio (single-threaded)
-            eng.top_k = top_k
-            return run_query(eng, question)
+            with _lock:
+                return run_query(_query_engine(), question, top_k)
         except Exception as exc:
             raise _reraise(exc) from exc
 
-    @app.tool(annotations=_WRITE)
-    def rag_sync(full: bool = False) -> SyncResult:
-        """Ingest deltas from all configured sources. full=True reindexes from scratch."""
-        try:
-            connectors, accounts = _build_connectors(cfg)
-            orch = SyncOrchestrator(
-                connectors=connectors,
-                accounts_per_connector=accounts,
-                embedder=embedder,
-                index=index,
-                metadata=meta,
-                dlq=dlq,
-                chunk_size=cfg.chunking.fallback_size,
-                overlap=cfg.chunking.overlap,
-                ocr_strategy=cfg.ocr.strategy if cfg.ocr.enabled else "never",
-            )
-            return run_sync(orch, index, full=full)
-        except Exception as exc:
-            raise _reraise(exc) from exc
+    if allow_sync:
+
+        @app.tool(annotations=_WRITE)
+        def rag_sync(full: bool = False) -> SyncResult:
+            """Ingest deltas from all configured sources. full=True reindexes from scratch."""
+            try:
+                with _lock:
+                    connectors, accounts = _build_connectors(cfg)
+                    orch = SyncOrchestrator(
+                        connectors=connectors,
+                        accounts_per_connector=accounts,
+                        embedder=embedder,
+                        index=index,
+                        metadata=meta,
+                        dlq=dlq,
+                        chunk_size=cfg.chunking.fallback_size,
+                        overlap=cfg.chunking.overlap,
+                        ocr_strategy=cfg.ocr.strategy if cfg.ocr.enabled else "never",
+                    )
+                    return run_sync(orch, index, full=full)
+            except Exception as exc:
+                raise _reraise(exc) from exc
 
     @app.tool(annotations=_READ)
     def rag_status() -> StatusResult:
@@ -201,12 +212,38 @@ def build_app(cfg_path: Path):
     return app
 
 
+def _serve_http(args: Any) -> None:
+    """Serve the streamable-HTTP transport behind a required bearer token.
+
+    The HTTP endpoint exposes the corpus over the network, so ``RAG_MCP_TOKEN`` is
+    mandatory (fail-closed). The write ``rag_sync`` tool stays hidden unless
+    ``RAG_MCP_ALLOW_SYNC`` (1/true/yes) opts it in.
+    """
+    import os
+
+    import uvicorn
+
+    from rag.serve._http_auth import BearerAuthMiddleware
+
+    token = os.environ.get("RAG_MCP_TOKEN")
+    if not token:
+        raise SystemExit(
+            "RAG_MCP_TOKEN must be set for --transport streamable-http: the HTTP "
+            "endpoint exposes your corpus, so a bearer token is required."
+        )
+    allow_sync = os.environ.get("RAG_MCP_ALLOW_SYNC", "").lower() in {"1", "true", "yes"}
+    app = build_app(Path(args.config), allow_sync=allow_sync)
+    asgi = BearerAuthMiddleware(app.streamable_http_app(), token)
+    uvicorn.run(asgi, host=args.host, port=args.port)
+
+
 def main(argv: list[str] | None = None) -> None:
     """Console entry point (`rag-mcp`).
 
     Default ``stdio`` transport keeps the server local and private. Pass
     ``--transport streamable-http`` (with optional ``--host``/``--port``) to serve
-    remotely — note the index and embeddings then leave the local machine.
+    remotely behind a required ``RAG_MCP_TOKEN`` — note the index and embeddings
+    then leave the local machine.
     """
     import argparse
     import os
@@ -236,11 +273,10 @@ def main(argv: list[str] | None = None) -> None:
         help="Bind port for streamable-http transport.",
     )
     args = parser.parse_args(argv)
-    app = build_app(Path(args.config))
     if args.transport == "streamable-http":
-        app.settings.host = args.host
-        app.settings.port = args.port
-    app.run(transport=args.transport)
+        _serve_http(args)
+    else:
+        build_app(Path(args.config)).run(transport="stdio")
 
 
 if __name__ == "__main__":
