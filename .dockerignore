@@ -1,0 +1,19 @@
+# Keep the build context small and avoid leaking local data/secrets into the image.
+.git
+.venv
+.pytest-tmp
+.pytest-tmp*
+__pycache__
+*.pyc
+*.log
+*.err
+.coverage
+htmlcov
+config.yaml
+*.bundle
+*.tq
+manifests/
+.agent/
+docs/
+tests/
+.cursor/
