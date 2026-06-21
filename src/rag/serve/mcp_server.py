@@ -204,3 +204,24 @@ def build_app(cfg_path: Path):
         return run_dlq_list(dlq, limit)
 
     return app
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Console entry point (`rag-mcp`). Serves the RAG tools over stdio."""
+    import argparse
+    import os
+
+    parser = argparse.ArgumentParser(prog="rag-mcp", description="Super-RAG MCP server")
+    parser.add_argument(
+        "--config",
+        "-c",
+        default=os.environ.get("RAG_CONFIG", "config.yaml"),
+        help="Path to config.yaml (or set RAG_CONFIG).",
+    )
+    args = parser.parse_args(argv)
+    app = build_app(Path(args.config))
+    app.run(transport="stdio")
+
+
+if __name__ == "__main__":
+    main()
