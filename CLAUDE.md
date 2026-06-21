@@ -54,3 +54,10 @@ The pipeline is a linear data flow assembled in `src/rag/serve/cli.py::_build` a
 - Ruff: line length 100, rules `E F I B UP RUF`, `E501` ignored; `B011` allowed in tests.
 - Tests in `tests/unit/` are the contract; `tests/integration/test_e2e.py` is gated by `-m integration` and requires real Ollama + `claude` CLI. Fixtures (sample PDFs/DOCX) live in `tests/fixtures/`.
 - Session state for long-running agentic work is tracked in `.agent/` (`progress.md`, `tasks.json`, `state.json`) per the user's global checkpoint protocol — update these when checkpointing, do not delete.
+
+**MCP server** (`src/rag/serve/mcp_server.py`): exposes the pipeline as MCP tools
+(`rag_query`, `rag_sync`, `rag_status`, `rag_dlq_list`) via `FastMCP` over stdio. Tool
+handlers delegate to pure functions (`run_query`/`run_status`/`run_dlq_list`/`run_sync`)
+that are dependency-injected for unit testing; tools carry MCP annotations and return
+`TypedDict`s for structured output. `mcp` is an optional `[mcp]` extra, lazy-imported in
+`build_app`/`main`. Entry point: `rag-mcp` (see `docs/mcp-server.md`).
