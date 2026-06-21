@@ -162,6 +162,7 @@ def build_app(cfg_path: Path):
         prefix (default 'private:') to force local-only generation."""
         try:
             eng = _query_engine()
+            # single cached engine; top_k mutation is safe under stdio (single-threaded)
             eng.top_k = top_k
             return run_query(eng, question)
         except Exception as exc:
@@ -192,7 +193,7 @@ def build_app(cfg_path: Path):
         """Last-run summary and dead-letter-queue depth."""
         return run_status(meta, dlq)
 
-    @app.tool(name="rag_dlq_list", annotations=_READ)
+    @app.tool(annotations=_READ)
     def rag_dlq_list(limit: int = 50) -> list[dict]:
         """List up to ``limit`` dead-letter entries."""
         return run_dlq_list(dlq, limit)

@@ -35,3 +35,5 @@ async def test_build_app_registers_four_tools(tmp_path, monkeypatch):
     status_tool = next(t for t in tools if t.name == "rag_status")
     assert status_tool.annotations is not None
     assert status_tool.annotations.readOnlyHint is True
+    sync_tool = next(t for t in tools if t.name == "rag_sync")
+    assert sync_tool.annotations.readOnlyHint is False
