@@ -21,6 +21,21 @@ rag dlq list                          # inspect failed documents
 
 Use `private: ...` as a query prefix to keep generation on the local Ollama backend.
 
+## MCP server
+
+The pipeline is also exposed as an MCP server (`rag-mcp`) so Hermes, Cursor, and other
+MCP clients can drive it. Install the optional `[mcp]` extra and run over stdio:
+
+```bash
+uv pip install -e ".[mcp]"
+rag-mcp -c config.yaml                 # stdio (local, private) — default
+```
+
+Four tools are registered: `rag_query`, `rag_sync`, `rag_status`, `rag_dlq_list`. For
+remote hosting, run `rag-mcp --transport streamable-http --host 0.0.0.0 --port 8000`
+or use the provided `Dockerfile`. See [docs/mcp-server.md](docs/mcp-server.md) for tool
+schemas, client wiring, the Docker/HTTP path, and the Ona/Gitpod dev environment.
+
 ## Prerequisites
 
 - Python 3.12

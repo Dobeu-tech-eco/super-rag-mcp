@@ -37,8 +37,34 @@ rag-mcp -c config.yaml          # serves over stdio
 
 Merge that JSON into your MCP client config (e.g. `~/.cursor/mcp.json`).
 
-## Remote hosting (optional)
+## HTTP transport & Docker (optional)
 
-See the implementation plan's Phase 2 for an HTTP transport + Dockerfile and an
-Ona/Gitpod multi-repo dev environment. Note: remote hosting moves the index and
-embeddings off the local machine, changing the privacy posture.
+`rag-mcp` defaults to stdio (local, private). For remote hosting, switch transport:
+
+```bash
+rag-mcp -c config.yaml --transport streamable-http --host 0.0.0.0 --port 8000
+```
+
+Or run it in a container (installs the `[mcp,cloud]` extras):
+
+```bash
+docker build -t super-rag-mcp .
+docker run --rm -p 8000:8000 \
+  -e COMPOSIO_API_KEY="$COMPOSIO_API_KEY" \
+  -v /host/rag-data:/data \
+  super-rag-mcp
+```
+
+The image reads `config.yaml` from `/data` (`RAG_CONFIG=/data/config.yaml`); mount
+your `bundle_dir` there too. `COMPOSIO_API_KEY` is passed at runtime (`-e`) and is
+never baked into the image.
+
+> **Privacy:** HTTP transport moves the index and embeddings off the local machine.
+> Keep stdio for fully local setups; only enable HTTP when you intend to serve remotely.
+
+## Cloud dev environment (Ona / Gitpod)
+
+`.gitpod.yml` provisions a reproducible workspace (uv install of `.[dev,mcp,cloud]`,
+Tesseract/Poppler, Ollama with the embedding + generation models). `.devcontainer/devcontainer.json`
+gives the equivalent for Codespaces/Ona devcontainer mode. Copy `config.example.yaml`
+to `config.yaml`, then run `rag-mcp -c config.yaml`.
