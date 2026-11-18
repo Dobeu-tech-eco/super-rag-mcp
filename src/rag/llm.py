@@ -1,7 +1,9 @@
 """LLM generation backends. Claude Code CLI (Max auth) + Ollama local."""
 from __future__ import annotations
+
 import subprocess
 from typing import Literal, Protocol
+
 import httpx
 
 

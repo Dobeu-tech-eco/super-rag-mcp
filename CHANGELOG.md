@@ -17,8 +17,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   generation — and the corpus — local.
 
 ### Fixed
-- **`rag sync --full` / `rag_sync(full=True)`:** re-index from scratch by ignoring the last
-  successful run watermark (`SyncOrchestrator.run(full=…)`).
+- **`rag sync --full` / `rag_sync(full=True)`:** ignore the last successful run watermark
+  (`SyncOrchestrator.run(full=…)`). The content-hash check still skips unchanged indexed documents.
 - **Concurrency:** `rag_query` no longer mutates a shared `QueryEngine` (`eng.top_k = …`);
   `top_k` is threaded per call and tool execution is serialized with a lock so a query can't
   read the index mid-sync. `QueryEngine.ask` gained a backward-compatible `top_k` parameter.

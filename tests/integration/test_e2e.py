@@ -5,11 +5,12 @@ Skipped unless RAG_INTEGRATION=1 is set, because it needs a running Ollama.
 import os
 import shutil
 from pathlib import Path
+
 import pytest
 import yaml
 from click.testing import CliRunner
-from rag.serve.cli import main as cli
 
+from rag.serve.cli import main as cli
 
 pytestmark = pytest.mark.integration
 

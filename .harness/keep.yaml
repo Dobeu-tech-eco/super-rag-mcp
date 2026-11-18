@@ -1,0 +1,8 @@
+plugins:
+  - dt@dts2
+skills:
+  - name: code-review
+    source: npx skills add https://github.com/mattpocock/skills --skill code-review
+    serves: harness
+agents:
+  - codex

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, Union
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -40,7 +40,7 @@ class OutlookSource(BaseModel):
     mime_filter: list[str] | None = None
 
 
-SourceConfig = Union[LocalfsSource, GdriveSource, OneDriveSource, GmailSource, OutlookSource]
+SourceConfig = LocalfsSource | GdriveSource | OneDriveSource | GmailSource | OutlookSource
 
 
 class EmbeddingConfig(BaseModel):
@@ -103,7 +103,8 @@ class Config(BaseModel):
         }
         for item in v:
             if isinstance(item, BaseModel):
-                out.append(item); continue
+                out.append(item)
+                continue
             kind = item.get("kind")
             if kind not in registry:
                 raise ValueError(f"Unknown source kind: {kind}")

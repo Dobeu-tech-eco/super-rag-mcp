@@ -58,7 +58,7 @@ class VectorIndex:
     # ------------------------------------------------------------------
 
     @classmethod
-    def load(cls, dim: int, path: Path) -> "VectorIndex":
+    def load(cls, dim: int, path: Path) -> VectorIndex:
         """Load a previously saved VectorIndex from *path* (.tvim + sidecar)."""
         inst = cls(dim, path)
         tvim_path = inst.path
@@ -138,7 +138,7 @@ class VectorIndex:
         row_ids: np.ndarray = uint_ids[0]
         return [
             (self._int_to_str[int(uid)], float(sc))
-            for uid, sc in zip(row_ids, row_scores)
+            for uid, sc in zip(row_ids, row_scores, strict=False)
             if int(uid) in self._int_to_str
         ]
 

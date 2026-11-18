@@ -24,3 +24,19 @@ mirrors/
 # OS
 .DS_Store
 Thumbs.db
+.harness/runs/
+.harness/lessons-inbox.md
+.harness.bak-*/
+.claude/*.local.md
+.harness/review/screens/
+.harness/gtm/*/screens/
+.env
+.harness/handoff/latest.md
+.harness/.skills-checked
+.harness/settings.cache.json
+.harness/upgrade-from.txt
+.harness/skill-updates.json
+.harness/cache/
+.harness/.locks/
+
+.claude/settings.local.json

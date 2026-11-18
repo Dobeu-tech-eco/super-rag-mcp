@@ -4,12 +4,13 @@ Maintains a tiny per-root manifest file (`.rag-localfs-manifest.json`) inside
 each root so deletes become observable across runs.
 """
 from __future__ import annotations
-import hashlib
+
 import json
 import mimetypes
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
+
 from rag.types import ChangeEvent, RawDoc
 
 _MANIFEST_NAME = ".rag-localfs-manifest.json"

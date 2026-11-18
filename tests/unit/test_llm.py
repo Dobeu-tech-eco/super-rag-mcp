@@ -1,7 +1,9 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import httpx
-import respx
 import pytest
+import respx
+
 from rag.llm import ClaudeCLIBackend, OllamaBackend, route_query
 
 
@@ -34,8 +36,10 @@ def test_ollama_backend_calls_chat_endpoint():
 
 
 def test_route_query_uses_private_prefix():
-    claude = MagicMock(); claude.generate.return_value = "C"
-    ollama = MagicMock(); ollama.generate.return_value = "O"
+    claude = MagicMock()
+    claude.generate.return_value = "C"
+    ollama = MagicMock()
+    ollama.generate.return_value = "O"
     text, is_private = route_query("private: my question", claude=claude, ollama=ollama,
                                    private_prefix="private:", default="claude-cli",
                                    private_routes_to="ollama")
@@ -44,8 +48,10 @@ def test_route_query_uses_private_prefix():
 
 
 def test_route_query_default():
-    claude = MagicMock(); claude.generate.return_value = "C"
-    ollama = MagicMock(); ollama.generate.return_value = "O"
+    claude = MagicMock()
+    claude.generate.return_value = "C"
+    ollama = MagicMock()
+    ollama.generate.return_value = "O"
     text, is_private = route_query("normal question", claude=claude, ollama=ollama,
                                    private_prefix="private:", default="claude-cli",
                                    private_routes_to="ollama")

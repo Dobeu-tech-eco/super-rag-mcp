@@ -1,6 +1,8 @@
 from datetime import datetime
 from pathlib import Path
+
 import pytest
+
 from rag.parser import parse
 from rag.types import RawDoc
 

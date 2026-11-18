@@ -37,3 +37,16 @@ async def test_build_app_registers_four_tools(tmp_path, monkeypatch):
     assert status_tool.annotations.readOnlyHint is True
     sync_tool = next(t for t in tools if t.name == "rag_sync")
     assert sync_tool.annotations.readOnlyHint is False
+
+
+@pytest.mark.asyncio
+async def test_read_only_http_app_constructs(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        mod, "_build",
+        lambda _: (object(), _FakeMeta(), _FakeDLQ(tmp_path / "dlq.jsonl"), object(), object()),
+    )
+    app = mod.build_app(Path("config.yaml"), allow_sync=False)
+    assert {t.name for t in await app.list_tools()} == {
+        "rag_query", "rag_status", "rag_dlq_list",
+    }
+    assert callable(app.streamable_http_app())

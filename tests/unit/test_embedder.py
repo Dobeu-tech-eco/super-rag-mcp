@@ -1,6 +1,7 @@
 import httpx
 import pytest
 import respx
+
 from rag.embedder import OllamaEmbedder
 
 

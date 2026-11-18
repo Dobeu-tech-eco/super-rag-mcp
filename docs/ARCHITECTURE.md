@@ -1,7 +1,6 @@
 # Super RAG — Architecture
 
-**Last updated:** 2026-05-24
-**Phase:** 1 (Local-files MVP) complete; Phase 2 (cloud connectors) pending.
+This document describes the v0.3.0 architecture. Local and Composio-backed sources use the same sync pipeline. Query and sync are available through the CLI and the optional MCP server.
 
 ## Pipeline
 
@@ -9,7 +8,7 @@
                               SYNC PATH
    ┌──────────────┐   ChangeEvent   ┌──────────┐  RawDoc   ┌────────┐
    │  Connector   │ ──────────────► │   sync   │ ────────► │ parser │
-   │  (localfs)   │ ◄── fetch ───── │ (orchestr)│           └───┬────┘
+   │ local/cloud │ ◄── fetch ───── │ (orchestr)│           └───┬────┘
    └──────────────┘                 └──────────┘               │ ParsedDoc
                                           │                    ▼
                                           │              ┌──────────┐
@@ -62,15 +61,17 @@
 
 **dlq** (`rag/dlq.py`) — Append-only JSONL of `(doc_id, source, account, error, traceback, retry_count, first_failed_at, last_failed_at)`. Deduplicates on `(doc_id, source, account)`. `mark_retried` rewrites the file in place.
 
-**sync** (`rag/sync.py`) — `SyncOrchestrator.run()` opens a run row, iterates connectors × accounts, applies deltas since the last successful run, and per-document: hashes content, skips if hash matches an existing indexed row, parses → chunks → embeds → atomically swaps vectors and chunk rows for that doc. Failures are isolated per-doc and land in the DLQ; per-account auth/list failures are logged but don't abort the run.
+**sync** (`rag/sync.py`) — `SyncOrchestrator.run()` opens a run row, iterates configured connectors and accounts, and applies deltas since the last successful run. It hashes each document and skips unchanged indexed content. For a changed document it parses, chunks, and embeds the content, then updates its vectors and metadata. Per-document processing failures land in the DLQ.
 
 **query** (`rag/query.py`) — `QueryEngine.ask()` strips the private prefix, embeds the cleaned question, top-k searches the vector index, hydrates the chunk rows from SQLite while preserving rank order, builds a context block with `[Source: …]` headers, picks the backend (Claude CLI by default; Ollama when private), and returns an `Answer` with `Citation`s.
 
 **llm** (`rag/llm.py`) — `LLMBackend` Protocol with two concrete implementations: `ClaudeCLIBackend` shells out to `claude --print` (reuses the user's Max-tier auth, no API key), `OllamaBackend` POSTs `/api/chat`. `route_query` is a pure function returning `(cleaned_text, is_private)`.
 
-**connectors** (`rag/connectors/`) — `Connector` Protocol plus `LocalfsConnector`. The local connector walks configured roots for supported extensions (`.pdf .txt .md .docx`), filters by `since`, and writes a `.rag-localfs-manifest.json` per root so deletes between runs surface as `ChangeEvent(operation="delete")`.
+**connectors** (`rag/connectors/`) — The `Connector` protocol has implementations for local files, Google Drive, OneDrive, Gmail attachments, and Outlook attachments. The local implementation walks configured roots for supported extensions (`.pdf .txt .md .docx`) and records a `.rag-localfs-manifest.json` per root. The cloud implementations use Composio and record manifests per source and account. The manifests let connectors report deletions as `ChangeEvent(operation="delete")`.
 
-**serve.cli** (`rag/serve/cli.py`) — Click CLI: `rag sync`, `rag query`, `rag status`, `rag dlq list`. Wires config → stores → orchestrator/engine. Rich-formatted output.
+**serve.cli** (`rag/serve/cli.py`) — The Click CLI wires configuration and stores to the sync orchestrator and query engine. It exposes `rag sync`, `rag query`, `rag status`, and DLQ commands. `rag sync --full` bypasses the run watermark and retains content-hash deduplication.
+
+**serve.mcp_server** (`rag/serve/mcp_server.py`) — The optional FastMCP server exposes query, sync, status, and DLQ tools over stdio. HTTP requires a bearer token and exposes read-only tools by default. In a server process, query and sync share a lock, and query `top_k` is passed per request. See the [MCP server guide](mcp-server.md).
 
 ## Data contracts (`rag/types.py`)
 
@@ -89,8 +90,8 @@ All inter-component payloads are frozen dataclasses:
 
 - **`doc_id`** is connector-defined and source-stable. For `localfs` it is the absolute path string.
 - **`chunk_id`** is canonical: `"{source}:{account}:{doc_id}:{idx:05d}"`. The 5-digit zero-padded index keeps lexicographic order matching numeric order up to 100k chunks/doc. The index's `delete_by_doc_id` relies on the `source:account:doc_id:` prefix, and `metadata.upsert_chunks` parses the prefix back out.
-- **`account`** is a connector-scoped alias (e.g. `"default"` for local, `"personal-jeremy"` for cloud accounts in Phase 2).
-- **`source`** is the connector's `name` attribute (`"localfs"`, future: `"gdrive"`, `"onedrive"`, `"gmail"`, `"outlook"`).
+- **`account`** is a connector-scoped alias such as `"default"` for local files or a configured alias for a cloud account.
+- **`source`** is the connector's `name` attribute (`"localfs"`, `"gdrive"`, `"onedrive"`, `"gmail"`, `"outlook"`).
 
 ## Extension points
 
