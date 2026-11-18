@@ -1,6 +1,8 @@
 from datetime import datetime
 from pathlib import Path
+
 import pytest
+
 from rag.metadata import MetadataStore
 from rag.types import ChangeEvent, Chunk
 

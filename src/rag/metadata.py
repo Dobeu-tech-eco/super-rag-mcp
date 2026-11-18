@@ -1,11 +1,12 @@
 """SQLite-backed metadata store: documents, chunks, runs."""
 from __future__ import annotations
+
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from rag.types import ChangeEvent, Chunk
 
+from rag.types import ChangeEvent, Chunk
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (

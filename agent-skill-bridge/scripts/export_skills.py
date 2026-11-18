@@ -85,7 +85,7 @@ def find_skill_files(root: Path) -> list[Path]:
     return sorted(found)
 
 
-def classify(skill_md: Path):
+def classify(skill_md: Path) -> tuple[str, str, str, int, str]:
     """Return (status, name, body, mcp_count, reason)."""
     try:
         text = skill_md.read_text(encoding="utf-8", errors="replace")
@@ -115,7 +115,7 @@ def safe_dirname(name: str, used: set[str]) -> str:
     (WinError 267). Replace illegal chars, trim trailing dots/spaces, and
     de-duplicate so two sanitized names can't collide.
     """
-    safe = _ILLEGAL_FS.sub("-", name).rstrip(". ").strip()
+    safe = re.sub(r"[.\s]+$", "", _ILLEGAL_FS.sub("-", name)).lstrip()
     if not safe:
         safe = "skill"
     candidate, i = safe, 2
@@ -190,7 +190,7 @@ def main() -> int:
 
     for root in roots:
         for skill_md in find_skill_files(root):
-            status, name, body, mcp_count, reason = classify(skill_md)
+            status, name, _, mcp_count, reason = classify(skill_md)
             rel = str(skill_md.parent)
             if status == "skipped":
                 skipped.append({"name": name, "source": rel, "reason": reason})

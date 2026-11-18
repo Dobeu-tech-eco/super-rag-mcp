@@ -1,5 +1,6 @@
 """Ollama-backed embedder. One interface, used identically on ingest and query sides."""
 from __future__ import annotations
+
 import httpx
 
 

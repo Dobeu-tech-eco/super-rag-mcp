@@ -1,9 +1,10 @@
 """Dead-letter queue stored as JSONL."""
 from __future__ import annotations
+
 import json
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
 
 
 class DeadLetterQueue:

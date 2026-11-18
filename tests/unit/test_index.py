@@ -1,8 +1,8 @@
 from pathlib import Path
-import numpy as np
-import pytest
-from rag.index import VectorIndex
 
+import numpy as np
+
+from rag.index import VectorIndex
 
 # turbovec requires dim to be a multiple of 8; we use dim=8 throughout.
 DIM = 8

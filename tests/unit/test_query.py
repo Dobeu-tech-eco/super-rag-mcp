@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock
-import numpy as np
+
 from rag.query import QueryEngine
 from rag.types import Answer
 
@@ -19,7 +19,8 @@ def test_query_returns_answer_with_citations():
         {"chunk_id": "localfs:default:doc2:00000", "text": "Safety policy chunk B",
          "source_url": "file:///doc2.pdf", "page_start": 3, "page_end": 3},
     ]
-    claude = MagicMock(); claude.generate.return_value = "Drivers under 6 months..."
+    claude = MagicMock()
+    claude.generate.return_value = "Drivers under 6 months..."
     ollama = MagicMock()
 
     qe = QueryEngine(embedder=embedder, index=index, metadata=metadata,
@@ -46,7 +47,8 @@ def test_query_private_uses_ollama():
         "source_url": "file:///x", "page_start": 1, "page_end": 1
     }]
     claude = MagicMock()
-    ollama = MagicMock(); ollama.generate.return_value = "Local answer."
+    ollama = MagicMock()
+    ollama.generate.return_value = "Local answer."
 
     qe = QueryEngine(embedder=embedder, index=index, metadata=metadata,
                      claude=claude, ollama=ollama, top_k=5,

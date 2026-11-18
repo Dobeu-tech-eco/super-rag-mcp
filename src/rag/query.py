@@ -23,9 +23,9 @@ _SYSTEM_PROMPT = (
 class QueryEngine:
     def __init__(
         self,
-        embedder: "OllamaEmbedder",
-        index: "VectorIndex",
-        metadata: "MetadataStore",
+        embedder: OllamaEmbedder,
+        index: VectorIndex,
+        metadata: MetadataStore,
         claude: LLMBackend,
         ollama: LLMBackend,
         top_k: int = 5,

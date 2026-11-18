@@ -4,6 +4,8 @@ Exposes the Super-RAG pipeline as MCP tools so Hermes, Cursor, and other MCP
 clients can query and sync the index. Pairs with the generic Composio bridge
 (`one-composio-mcp`) as a second server in the same client config.
 
+The v0.3.0 implementation uses the MCP Python SDK 1.x `FastMCP` API. The `mcp` extra selects a compatible SDK major version.
+
 ## Install & run
 
 ```bash
@@ -21,8 +23,10 @@ rag-mcp -c config.yaml          # serves over stdio
 | `rag_status` | read-only, idempotent | — | `{total_runs, last_run, dlq_entries}` |
 | `rag_dlq_list` | read-only, idempotent | `limit: int=50` | list of dead-letter entries |
 
-- Prefix a question with the configured private prefix (default `private:`) to
-  force local-only generation via Ollama — queries stay off the cloud.
+- With the default routing configuration, prefix a question with `private:` to use
+  the configured Ollama endpoint for generation.
+- `rag_sync(full=True)` scans without the last successful run watermark. The
+  content-hash check still skips unchanged indexed documents.
 - `rag_sync` only needs `COMPOSIO_API_KEY` (and a `composio:` config block) when
   cloud sources are configured; local-only setups don't.
 - Failures surface an actionable hint (Ollama down, missing config, missing key).

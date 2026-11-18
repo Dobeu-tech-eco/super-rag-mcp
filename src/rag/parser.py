@@ -1,9 +1,12 @@
 """Document parser with PDF text extraction + OCR fallback + DOCX + TXT."""
 from __future__ import annotations
+
 from io import BytesIO
 from typing import Literal
+
 import fitz  # pymupdf
 from docx import Document as DocxDocument
+
 from rag.types import ParsedDoc, RawDoc
 
 OcrStrategy = Literal["auto_detect", "always", "never"]
@@ -47,8 +50,8 @@ def _parse_pdf(raw: RawDoc, ocr_strategy: OcrStrategy, min_chars_per_page: int) 
 
 def _ocr_pdf(content: bytes) -> list[str]:
     # Lazy import — OCR deps are heavy and not always available.
-    from pdf2image import convert_from_bytes
     import pytesseract
+    from pdf2image import convert_from_bytes
     images = convert_from_bytes(content, dpi=200)
     texts: list[str] = []
     for img in images:

@@ -4,16 +4,19 @@ Self-hosted retrieval-augmented generation over your personal cloud and local do
 
 ## Status
 
-**Phase 1 (Local-files MVP): shipped.** End-to-end pipeline works against PDFs, DOCX, TXT, and Markdown on the local filesystem with OCR fallback, semantic chunking, Ollama embeddings, a turbovec vector index, and dual LLM backends (Claude Code CLI + local Ollama). Tasks 1–15 of the MVP plan are merged; unit + integration suites are green.
+**Released in v0.3.0 and earlier.** The local pipeline ingests PDFs, DOCX, TXT, and Markdown with OCR fallback, semantic chunking, Ollama embeddings, a TurboVec index, and Claude Code CLI or Ollama generation. Optional Composio connectors add Google Drive, OneDrive, Gmail attachments, and Outlook attachments. The optional MCP server supports stdio and bearer-authenticated HTTP, with HTTP write access disabled by default. v0.3.0 also added `rag sync --full` and fixed concurrent MCP queries sharing `top_k`. See the [changelog](CHANGELOG.md) for release history.
 
-**Phase 2 (Cloud connectors): wired.** Google Drive, OneDrive, Gmail (attachments), and Outlook (attachments) are implemented over Composio and wired into `rag sync`. The Composio request/response contract (action names, params, and the presigned-`s3url` download model) is validated against the live API for Drive and Outlook; install with the `cloud` extra and configure accounts per [docs/SETUP.md](docs/SETUP.md) §7.
+**Verification.** Earlier project records describe live Composio contract checks against Google Drive and Outlook. The November 17, 2026 baseline covers local unit and lint checks on v0.3.0 plus the exporter and Dependabot commits. The [verification receipt](.harness/receipt.md) records exact results and coverage limits. Section 7 of the [setup guide](docs/SETUP.md) covers cloud setup.
+
+The potential fold of `dobeu-knowledge-pilot` into Super RAG is future work that requires separate approval.
 
 ## Quickstart (live)
 
 ```bash
-uv venv && uv pip install -e ".[dev]"
+uv venv --python 3.12 && uv pip install -e ".[dev]"
 cp config.example.yaml config.yaml   # edit paths/sources
 rag sync                              # ingest configured roots
+rag sync --full                       # scan without the last successful run watermark
 rag query "what does the safety policy say about new drivers?"
 rag status                            # last run + DLQ counts
 rag dlq list                          # inspect failed documents
@@ -48,7 +51,7 @@ path, and the Ona/Gitpod dev environment.
 
 ## Architecture at a glance
 
-**Sync path.** `rag sync` walks each configured `Connector` (`LocalfsConnector` plus the Composio-backed `GdriveConnector`, `OneDriveConnector`, `GmailConnector`, `OutlookConnector`) for change events since the last successful run. New/modified docs are fetched as `RawDoc`, parsed (PyMuPDF for PDFs with auto-detect OCR fallback, python-docx for DOCX, plain decode for text), chunked sentence-aware via LlamaIndex with per-chunk page-range mapping, embedded in batch through Ollama, and written atomically into the turbovec `VectorIndex` and SQLite `MetadataStore`. Failures land in a JSONL `DeadLetterQueue`; the manifest in each local root makes deletes observable across runs.
+**Sync path.** `rag sync` walks each configured `Connector` (`LocalfsConnector` plus the Composio-backed `GdriveConnector`, `OneDriveConnector`, `GmailConnector`, `OutlookConnector`) for change events since the last successful run. The pipeline fetches new or modified documents as `RawDoc`, parses them, uses LlamaIndex to produce sentence-aware chunks with page ranges, and embeds the chunks in batches through Ollama. It updates the TurboVec `VectorIndex` and SQLite `MetadataStore`. Per-document processing failures land in a JSONL `DeadLetterQueue`. Connector manifests make deletes observable across runs.
 
 **Query path.** `rag query` strips the optional `private:` prefix, embeds the question with the same Ollama model used at ingest, runs a top-k search against the vector index, hydrates the resulting chunk IDs from SQLite to get text + source URLs + page numbers, and hands a prompt with citations to the routed `LLMBackend` (Claude CLI by default, Ollama when `private:` was used). The CLI renders the answer plus a citations table.
 

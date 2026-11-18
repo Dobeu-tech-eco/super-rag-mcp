@@ -180,7 +180,7 @@ def build_app(cfg_path: Path, *, allow_sync: bool = True):
 
         @app.tool(annotations=_WRITE)
         def rag_sync(full: bool = False) -> SyncResult:
-            """Ingest deltas from all configured sources. full=True reindexes from scratch."""
+            """Ingest deltas from all configured sources. full=True bypasses the run watermark; unchanged indexed content is still skipped."""
             try:
                 with _lock:
                     connectors, accounts = _build_connectors(cfg)

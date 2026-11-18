@@ -1,0 +1,22 @@
+project: super-rag-mcp
+commands:
+  test: "python3 -m pytest tests/unit -q"
+  quick: "python3 -m pytest tests/unit -q"
+  lint: "ruff check ."
+  typecheck: ""
+  build: ""
+paths:
+  src: [src/rag]
+  tests: [tests]
+  docs: [docs]
+  config: [pyproject.toml, config.example.yaml]
+  generated: []
+do_not_touch:
+  - .env
+  - .env.*
+  - secrets/**
+  - '**/credentials*'
+  - .agent/**
+  - .superpowers/**
+roster:
+  - name: codex

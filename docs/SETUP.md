@@ -1,6 +1,6 @@
 # Super RAG — Setup Runbook
 
-A formal, step-by-step "get up and running" guide for the local-files MVP (Phase 1).
+A step-by-step Windows setup guide for the local-files pipeline. Section 7 covers the optional Composio connectors. The [MCP server guide](mcp-server.md) covers the optional server.
 Target: fresh Windows machine to a working `rag query` response in ~20 minutes.
 
 All commands assume **PowerShell 7+** unless noted. Replace `C:\Users\jswil\` with your
@@ -328,16 +328,16 @@ Paths below match `config.example.yaml`. Adjust to match your `config.yaml`.
 
 | Path | Purpose | Rebuildable? | Back up? |
 |------|---------|--------------|----------|
-| `C:\Users\jswil\rag-data\bundles\index.tq` | TurboVec vector index (all embeddings) | Yes — `rag sync` re-embeds everything | Optional (saves re-embedding time) |
-| `C:\Users\jswil\rag-data\meta.sqlite` | SQLite: runs, docs, chunks, citations metadata | Yes — recreated by `rag sync` | Optional |
+| `C:\Users\jswil\rag-data\bundles\index.tq` | TurboVec vector index (all embeddings) | Rebuild the full state set; see recovery below | Back up with sidecar and metadata |
+| `C:\Users\jswil\rag-data\bundles\index.tq.idmap.json` | Required mapping between vector IDs and chunk IDs | Rebuild the full state set | Back up with index and metadata |
+| `C:\Users\jswil\rag-data\meta.sqlite` | SQLite: runs, docs, chunks, citations metadata | Rebuild the full state set | Back up with index and sidecar |
 | `C:\Users\jswil\rag-data\dlq.jsonl` | Dead-letter queue: per-doc failures with reason + stack | No — historical record of failures | **Yes** |
 | `config.yaml` | Source paths, model choices, routing rules | No — hand-edited | **Yes** |
 | `.agent/progress.md`, `.agent/tasks.json`, `.agent/state.json` | Cross-session handoff state for the coding agent | No — manual + agent-written | **Yes** (in repo) |
 | `.venv/` | Python virtualenv | Yes — `uv venv && uv pip install -e ".[dev]"` | No |
 | Your source documents (`sources[*].paths`) | The corpus itself | No — these are the originals | **Yes** (separate backup; RAG never modifies them) |
 
-**Rule of thumb:** if you lost everything except `config.yaml`, your source documents,
-and `dlq.jsonl`, a single `rag sync` rebuilds the entire searchable state.
+**Recovery:** stop sync and query processes before restoring a consistent backup of all three files as one consistent set: `index.tq`, its matching `index.tq.idmap.json` sidecar, and `meta.sqlite`. Without the matching sidecar the loader returns an empty index. Do not restore or rebuild only the index: retained metadata can skip documents by watermark or matching content hash, even with `--full`. If no consistent backup exists, preserve the old files and configure fresh empty index and metadata paths together, then run `rag sync --full` with the original sources and required services available. Confirm document counts and representative queries before retiring the preserved files. Cloud sources also require working credentials and access.
 
 ---
 
@@ -399,7 +399,9 @@ message permalink). Per-account auth failures are isolated — one expired conne
 skips that account without aborting the run; failures land in the DLQ (`rag dlq list`,
 `rag dlq replay`).
 
-### 7.5 Gotchas (verified against the live API)
+### 7.5 Notes from earlier connector validation
+
+Earlier live checks covered Google Drive and Outlook. The [verification receipt](../.harness/receipt.md) records the current local checks.
 
 - **Outlook: don't set `mime_filter`.** Microsoft Graph reports many attachments
   (including PDFs) as `application/octet-stream`, so a mime filter silently drops them.
@@ -413,6 +415,8 @@ skips that account without aborting the run; failures land in the DLQ (`rag dlq 
 
 ## 8. What to Run Next
 
-- Full test suite: `pytest` (unit tests are hermetic; integration tests are gated by
-  `-m integration` and require a live Ollama + `claude` CLI).
-- Lint: `ruff check src tests`.
+- With `.[dev,mcp]` installed, run `python -m pytest tests/unit -q` and `ruff check .` in the virtual environment.
+- To exercise the local end-to-end test, set `RAG_INTEGRATION=1` and run
+  `python -m pytest tests/integration/test_e2e.py -q` with `bge-small-en-v1.5` and
+  `qwen2.5:7b` available from Ollama on `localhost:11434`. The test queries through
+  `private:`. Default Claude generation requires a separate authenticated `claude` CLI check.

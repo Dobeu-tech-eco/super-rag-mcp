@@ -1,7 +1,10 @@
 """Connector base — every source implements this."""
 from __future__ import annotations
+
+from collections.abc import Iterator
 from datetime import datetime
-from typing import Iterator, Protocol
+from typing import Protocol
+
 from rag.types import ChangeEvent, RawDoc
 
 
